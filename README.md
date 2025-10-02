@@ -2,8 +2,7 @@
 
 This project is designed to help ArcGIS Desktop developers quickly standup a project to perform geoprocessing within ArcGIS Pro.
 
-Usage
------
+## Usage
 
 Install `cookiecutter`_:
 
@@ -11,12 +10,8 @@ Install `cookiecutter`_:
 
 Generate a Python package project:
 
-
     cookiecutter https://github.com/achapkowski/EsriTbxCookieCutter.git
 
-Issues
-------
+## Issues
 
 Please feel free to leave feedback on the Github Issue page.
-
-

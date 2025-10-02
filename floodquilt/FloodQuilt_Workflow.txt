@@ -1,0 +1,38 @@
+1.	Existing Conditions Paths: W:\Citrix\54000s\54857\001\GIS\Ch2\Flood_Quilt_v2\Processing\Final_Existing
+		Export each frequency (10, 1, 0.2) (Separate feature classes) to a working GDB on your local computer
+		10-year: FLOOD_FREQ = 10 
+		100-year: FLOOD_FREQ = 10 + 1  
+		500-year: FLOOD_FREQ = 10 + 1 + 0.2
+ 
+i.	Future Conditions Paths: W:\Citrix\54000s\54857\001\GIS\Ch2\Future_Quilt\Future_Clipped_By_HUCS
+		Export each frequency (10, 1, 0.2) (Separate feature classes) to a working GDB on your local computer
+		10-year: FLOOD_FREQ = 10 
+		100-year: FLOOD_FREQ = 10 + 1  
+		500-year: FLOOD_FREQ = 10 + 1 + 0.2
+ 
+2.	For each Feature class created run Multipart to single part geoprocessing tool
+
+3.	Use the Merge tool (Analysis > Tools > Data Management > Merge) to combine the feature classes for each frequency (example: existing10YR + future10YR).
+ 
+4.	Once the two datasets are in one feature class, use the Dissolve tool to fully combine the two datasets together.
+	o	Save the output into a Feature Dataset within your working geodatabase.
+
+5.	For each dissolved frequency run repair geometry using validation method OGC
+ 
+6.	Once repair geometry is complete for all three frequencies, use the Erase tool. (Requires advanced pro license)(Parallel processing 100)
+	o	Erase the 100-year floodplains from the 500-year.
+	o	Erase the 10-year floodplains from the 100-year.
+7.  Once you have the 3 feature classes ready to be merged add a text field (FLOOD_FREQ) for each feature class, use the codes 10, 1, 0.2
+	o	Multipart to singlepart, and repair geometry on each erased feature class added here
+8.	Use the Merge tool to combine the files below into a single output feature class. Save output in a Feature Dataset with the Coord system NAD 1983 (2011) Texas Centric Mapping System Lambert (Meters)
+	o	10-year floodplains
+	o	Erased 100-year floodplains
+	o	Erased 500-year floodplains
+9.	Use the Create Topology (Catalog > Right-click Feature Dataset > New > Topology) on the merged feature class output in the previous step.
+	o	Rules will be:
+		1.	Must Not Overlap
+
+10. Intersect w/ counties and watersheds and then dissolve by FFRQ, HUC10 and ENT NAME (single county). Clip by HUC boundary and load into FutFldHaz schema.
+
+ 
+
