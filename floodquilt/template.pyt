@@ -16,7 +16,7 @@ from arcpy import da
 if sys.version_info.major == 3:
     from arcpy import mp as mapping
 else:
-    from arcpy import mapping
+    from arcpy import mapping  # type: ignore
 
 env.overwriteOutput = True
 

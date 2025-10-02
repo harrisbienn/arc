@@ -80,7 +80,7 @@ def build_ws_huc_lookup(table_path: str, ws_field: str, huc_field: str):
 def build_ws_huc_lookup(table_path: str, ws_field_guess="Watershed", huc_field_guess="Name"): # Most common failure point is field names not matching guesses
     """Return dict: watershed -> sorted list of HUC8s."""
     ws_to_huc = defaultdict(set)
-    fields = [f.name for f in arcpy.ListFields(table_path)]
+    fields = [f.name for f in arcpy.ListFields(table_path)] # type: ignore
 
     def findcol(want):
         """Find column name in fields, case-insensitive match; else return want."""
@@ -92,7 +92,7 @@ def build_ws_huc_lookup(table_path: str, ws_field_guess="Watershed", huc_field_g
     ws_col  = findcol(ws_field_guess)
     huc_col = findcol(huc_field_guess)
 
-    with arcpy.da.SearchCursor(table_path, [ws_col, huc_col]) as cur:
+    with arcpy.da.SearchCursor(table_path, [ws_col, huc_col]) as cur: # type: ignore
         for w, h in cur:
             if w is not None and h is not None:
                 ws_to_huc[str(w)].add(str(h))
@@ -104,7 +104,7 @@ def choose_spatial_ref_from_inputs(paths, fallback_sr=None):
         return fallback_sr
     for p in paths:
         try:
-            sr = arcpy.Describe(p).spatialReference
+            sr = arcpy.Describe(p).spatialReference # type: ignore
             if sr and sr.factoryCode not in (0, None):
                 return sr
         except Exception:
@@ -126,13 +126,13 @@ def apply_envs(parallel="100%", overwrite=True, workspace=None, scratch=None, oc
         arcpy.env.overwriteOutput = bool(overwrite)
     if parallel:
         # Accept "100%" or int
-        arcpy.env.parallelProcessingFactor = parallel
+        arcpy.env.parallelProcessingFactor = parallel # type: ignore
     if workspace:
-        arcpy.env.workspace = workspace
+        arcpy.env.workspace = workspace # type: ignore
     if scratch:
-        arcpy.env.scratchWorkspace = scratch
+        arcpy.env.scratchWorkspace = scratch # type: ignore
     if ocs:
-        arcpy.env.outputCoordinateSystem = ocs
+        arcpy.env.outputCoordinateSystem = ocs # type: ignore
 
 def split_floods(gdb: str, basename: str, spatial_ref, existing_fc: str, future_fc: str, split_field: str = "FLOOD_FREQ"):
     """
@@ -163,15 +163,15 @@ def split_floods(gdb: str, basename: str, spatial_ref, existing_fc: str, future_
 
     if not arcpy.Exists(fds_exist):
         _msg(f"Creating feature dataset: {fds_exist}")
-        arcpy.management.CreateFeatureDataset(gdb, fds_exist_name, spatial_ref)
+        arcpy.management.CreateFeatureDataset(gdb, fds_exist_name, spatial_ref) # type: ignore
     if not arcpy.Exists(fds_future):
         _msg(f"Creating feature dataset: {fds_future}")
-        arcpy.management.CreateFeatureDataset(gdb, fds_future_name, spatial_ref)
+        arcpy.management.CreateFeatureDataset(gdb, fds_future_name, spatial_ref) # type: ignore
 
     # ---- Process the EXISTING feature class ----
     # Split by attributes
     _msg(f"Splitting existing feature class by {split_field}…")
-    arcpy.analysis.SplitByAttributes(existing_fc, fds_exist, [split_field])
+    arcpy.analysis.SplitByAttributes(existing_fc, fds_exist, [split_field]) # type: ignore
 
     # Helper to find the split children regardless of how SplitByAttributes named them
     def _pick(ws, candidates):
@@ -195,18 +195,18 @@ def split_floods(gdb: str, basename: str, spatial_ref, existing_fc: str, future_
     _msg("Converting multipart to singlepart for existing outputs…")
     for src, dst in ((E10, exist_10), (E1, exist_100), (E5, exist_500)):
         if src and dst:
-            arcpy.management.MultipartToSinglepart(src, dst)
+            arcpy.management.MultipartToSinglepart(src, dst) # type: ignore
 
     # Delete raw split outputs if converted for existing
     to_delete_existing = [p for p in (E10, E1, E5) if p and arcpy.Exists(p)]
-    if to_delete_existing:
-        arcpy.management.Delete(to_delete_existing)
+    if to_delete_existing: 
+        arcpy.management.Delete(to_delete_existing) # type: ignore
     _msg("Existing feature class processing complete.")
 
     # ---- Process the FUTURE feature class ----
     # Split by attributes
     _msg(f"Splitting future feature class by {split_field}…")
-    arcpy.analysis.SplitByAttributes(future_fc, fds_future, [split_field])
+    arcpy.analysis.SplitByAttributes(future_fc, fds_future, [split_field]) # type: ignore
 
     F10 = _pick(fds_future, ["T10", "10yr", "10", "YR10", "yr10"])
     F1 = _pick(fds_future, ["T1", "100yr", "100", "YR100", "yr100"])
@@ -221,12 +221,12 @@ def split_floods(gdb: str, basename: str, spatial_ref, existing_fc: str, future_
     _msg("Converting multipart to singlepart for future outputs…")
     for src, dst in ((F10, future_10), (F1, future_100), (F5, future_500)):
         if src and dst:
-            arcpy.management.MultipartToSinglepart(src, dst)
+            arcpy.management.MultipartToSinglepart(src, dst) # type: ignore
 
     # Delete raw split outputs if converted for future
     to_delete_future = [p for p in (F10, F1, F5) if p and arcpy.Exists(p)]
     if to_delete_future:
-        arcpy.management.Delete(to_delete_future)
+        arcpy.management.Delete(to_delete_future) # type: ignore
     _msg("Future feature class processing complete.")
 
     return {
@@ -272,23 +272,23 @@ def combine_floods(
     sr_final = None
     for fc in (fc_10, fc_100, fc_500):
         if fc and arcpy.Exists(fc):
-            dsr = arcpy.Describe(fc).spatialReference
+            dsr = arcpy.Describe(fc).spatialReference # type: ignore
             if dsr and dsr.factoryCode:
                 sr_final = dsr
                 break
     if sr_final is None:
-        sr_final = out_cs or arcpy.env.outputCoordinateSystem
+        sr_final = out_cs or arcpy.env.outputCoordinateSystem # type: ignore
     _msg(f"Using spatial reference: {sr_final.name}")
 
     if not arcpy.Exists(final_fds):
-        arcpy.management.CreateFeatureDataset(gdb, final_fds_name, sr_final)
+        arcpy.management.CreateFeatureDataset(gdb, final_fds_name, sr_final) # type: ignore
     _msg("Final feature dataset created")
 
     # Repair
     _msg("Repairing geometries…")
-    rep_500 = arcpy.management.RepairGeometry(fc_500, validation_method="OGC").getOutput(0) if (fc_500 and arcpy.Exists(fc_500)) else None
-    rep_100 = arcpy.management.RepairGeometry(fc_100, validation_method="OGC").getOutput(0) if (fc_100 and arcpy.Exists(fc_100)) else None
-    rep_010 = arcpy.management.RepairGeometry(fc_10,  validation_method="OGC").getOutput(0) if (fc_10  and arcpy.Exists(fc_10))  else None
+    rep_500 = arcpy.management.RepairGeometry(fc_500, validation_method="OGC").getOutput(0) if (fc_500 and arcpy.Exists(fc_500)) else None # type: ignore
+    rep_100 = arcpy.management.RepairGeometry(fc_100, validation_method="OGC").getOutput(0) if (fc_100 and arcpy.Exists(fc_100)) else None # type: ignore
+    rep_010 = arcpy.management.RepairGeometry(fc_10,  validation_method="OGC").getOutput(0) if (fc_10  and arcpy.Exists(fc_10))  else None # type: ignore
 
     # Erase overlaps, stored in Output_<Basename>
     _msg("Erasing overlaps…")
@@ -298,12 +298,12 @@ def combine_floods(
 
     _msg("Erasing 500yr-100yr…")
     if rep_500 and rep_100:
-        arcpy.analysis.Erase(rep_500, rep_100, erased_500)
+        arcpy.analysis.Erase(rep_500, rep_100, erased_500) # type: ignore
     else:
         erased_500 = ""
     _msg("Erasing 100yr-10yr…")
     if rep_100 and rep_010:
-        arcpy.analysis.Erase(rep_100, rep_010, erased_100)
+        arcpy.analysis.Erase(rep_100, rep_010, erased_100) # type: ignore
     else:
         erased_100 = ""
 
@@ -314,7 +314,7 @@ def combine_floods(
     # Multipart → Singlepart for erased outputs
     for src, dst in ((erased_500, sp_500), (erased_100, sp_100), (rep_010, sp_010)):
         if src and dst and arcpy.Exists(src):
-            arcpy.management.MultipartToSinglepart(src, dst)
+            arcpy.management.MultipartToSinglepart(src, dst) # type: ignore
 
     # Use singlepart outputs if they exist
     inputs = [fc for fc in (sp_010 if arcpy.Exists(sp_010) else rep_010,
@@ -327,7 +327,7 @@ def combine_floods(
     # Merge thematic stack
     _msg("Merging layers into final…")
     ef_merged = os.path.join(final_fds, f"Existing_Future_{basename}_500yr_100yr_10yr")
-    arcpy.management.Merge(inputs, ef_merged)
+    arcpy.management.Merge(inputs, ef_merged) # type: ignore
     _msg(f"Merge sucessful: {ef_merged}")
 
     
@@ -340,19 +340,19 @@ def combine_floods(
     arcpy.management.Merge(inputs, ef_merged)
     _msg(f"Merge sucessful: {ef_merged}")'''
 
-    arcpy.management.RepairGeometry(ef_merged, validation_method="OGC")
+    arcpy.management.RepairGeometry(ef_merged, validation_method="OGC") # type: ignore
     
     # Topology
     _msg("Creating topology…")
-    topo = arcpy.management.CreateTopology(final_fds, f"Final_{basename}_Topology").getOutput(0)
-    arcpy.management.AddFeatureClassToTopology(topo, ef_merged, 1, 1)
-    arcpy.management.AddRuleToTopology(topo, "Must Not Overlap (Area)", ef_merged)
+    topo = arcpy.management.CreateTopology(final_fds, f"Final_{basename}_Topology").getOutput(0) # type: ignore
+    arcpy.management.AddFeatureClassToTopology(topo, ef_merged, 1, 1) # type: ignore
+    arcpy.management.AddRuleToTopology(topo, "Must Not Overlap (Area)", ef_merged) # type: ignore
     _msg("Topology creation sucessful.")
 
     # Optional validation (can be slow)
     if validate_topology:
         arcpy.AddMessage("Validating topology (Full Extent)…")
-        arcpy.management.ValidateTopology(topo, "Full_Extent")
+        arcpy.management.ValidateTopology(topo, "Full_Extent") # type: ignore
 
     return {
         "final_fds": final_fds,
@@ -467,32 +467,7 @@ class SplitFloodFreqs(object):
             direction="Input",
             category="Environment Settings"
         ); p_overwrite.value = True
-        '''
-        p_wsenv    = arcpy.Parameter(       # not used, envs applied globally
-            displayName="Workspace",
-            name="env_workspace",
-            datatype="Workspace",           # ← was DEWorkspace, Workspace is the safest for GDBs in a .pyt.
-            parameterType="Optional",
-            direction="Input",
-            category="Environment Settings"
-        )
-        p_scratch  = arcpy.Parameter(       # not used, envs applied globally
-            displayName="Scratch Workspace",
-            name="env_scratch",
-            datatype="Workspace",           # ← was DEWorkspace, Workspace is the safest for GDBs in a .pyt.
-            parameterType="Optional",
-            direction="Input",
-            category="Environment Settings"
-        )
-        p_ocs      = arcpy.Parameter(       # not used, envs applied globally
-            displayName="Output Coordinate System",
-            name="env_ocs",
-            datatype="GPSpatialReference",
-            parameterType="Optional",
-            direction="Input",
-            category="Environment Settings"
-        )
-        '''
+
         # Derived
         p_basename = arcpy.Parameter(
             displayName="Basename (derived)",
@@ -559,12 +534,12 @@ class SplitFloodFreqs(object):
         )
 
         return [p_lut, p_ws, p_h8, p_gdb, p_sr, p_in_exist, p_in_future, p_splitfield,
-            p_parallel, p_overwrite, #p_wsenv, p_scratch, p_ocs, # not used, envs applied globally
+            p_parallel, p_overwrite, 
             p_basename, p_fds_exist, p_exist_10, p_exist_100, p_exist_500,
             p_fds_future, p_future_10, p_future_100, p_future_500]
 
     def updateParameters(self, params):
-        (p_lut, p_ws, p_h8, *_rest) = params[:3+7]  # just to keep readable
+        p_lut, p_ws, p_h8 = params[0], params[1], params[2]  # just to keep readable
         p_basename = params[10] # derived
 
         # Cascade
@@ -582,15 +557,12 @@ class SplitFloodFreqs(object):
 
     def execute(self, params, messages):
         (p_lut, p_ws, p_h8, p_gdb, p_sr, p_in_exist, p_in_future, p_splitfield,
-         p_parallel, p_overwrite, #p_wsenv, p_scratch, p_ocs, # not used, envs applied globally
+         p_parallel, p_overwrite, 
          p_basename, p_fds_exist, p_exist_10, p_exist_100, p_exist_500,
          p_fds_future, p_future_10, p_future_100, p_future_500) = params
 
         apply_envs(p_parallel.valueAsText or "100%",
-                   p_overwrite.value,  # currently not overwriting instead appending 0 and end of name
-                   #p_wsenv.valueAsText,
-                   #p_scratch.valueAsText,
-                   #p_ocs.value
+                   p_overwrite.value
                    )
 
         gdb         = p_gdb.valueAsText
@@ -638,12 +610,12 @@ class SplitFloodFreqs(object):
         output_table = os.path.join(gdb, "FeatureClassPaths")
         
         # Create table if not exists
-        arcpy.management.CreateTable(gdb, "FeatureClassPaths")
-        arcpy.management.AddField(output_table, "Name", "TEXT")
-        arcpy.management.AddField(output_table, "FCPath", "TEXT")
+        arcpy.management.CreateTable(gdb, "FeatureClassPaths") # type: ignore
+        arcpy.management.AddField(output_table, "Name", "TEXT") # type: ignore
+        arcpy.management.AddField(output_table, "FCPath", "TEXT") # type: ignore
         
         # Insert paths into table
-        with arcpy.da.InsertCursor(output_table, ["Name", "FCPath"]) as cursor:
+        with arcpy.da.InsertCursor(output_table, ["Name", "FCPath"]) as cursor: # type: ignore
             for name, path in fc_paths.items():
                 cursor.insertRow([name, path])
 
@@ -745,32 +717,6 @@ class MergeFloodFreqs(object):
             direction="Input",
             category="Environment Settings"
         ); p_overwrite.value = True
-        '''
-        p_wsenv    = arcpy.Parameter(       # not used, envs applied globally
-            displayName="Workspace",
-            name="env_workspace",
-            datatype="Workspace",           # ← was DEWorkspace, Workspace is the safest for GDBs in a .pyt.
-            parameterType="Optional",
-            direction="Input",
-            category="Environment Settings"
-        )
-        p_scratch  = arcpy.Parameter(       # not used, envs applied globally
-            displayName="Scratch Workspace",
-            name="env_scratch",
-            datatype="Workspace",           # ← was DEWorkspace, Workspace is the safest for GDBs in a .pyt.
-            parameterType="Optional",
-            direction="Input",
-            category="Environment Settings"
-        )
-        p_ocs      = arcpy.Parameter(       # not used, envs applied globally
-            displayName="Output Coordinate System",
-            name="env_ocs",
-            datatype="GPSpatialReference",
-            parameterType="Optional",
-            direction="Input",
-            category="Environment Settings"
-        )
-        '''
 
         # Derived
         p_outfds = arcpy.Parameter(
@@ -803,7 +749,7 @@ class MergeFloodFreqs(object):
         )
 
         return [p_lut, p_ws, p_h8, p_table, p_field, p_gdb, p_base, p_sr,
-                p_parallel, p_overwrite, #p_wsenv, p_scratch, p_ocs,    # not used, envs applied globally
+                p_parallel, p_overwrite, 
                 p_outfds, p_out500, p_out100, p_out10]
 
     def updateParameters(self, params):
@@ -824,20 +770,20 @@ class MergeFloodFreqs(object):
         return
 
     def _scratch_gdb(self):
-        sgdb = arcpy.env.scratchGDB
+        sgdb = arcpy.env.scratchGDB # type: ignore
         if sgdb and arcpy.Exists(sgdb):
             return sgdb
         # Fallback: create a temp file GDB in the scratchFolder (or Workspace)
-        base_folder = (arcpy.env.scratchFolder or arcpy.env.workspace or arcpy.env.scratchWorkspace or os.getcwd())
+        base_folder = (arcpy.env.scratchFolder or arcpy.env.workspace or arcpy.env.scratchWorkspace or os.getcwd()) # type: ignore
         name = arcpy.CreateUniqueName("fgdb_", base_folder)  # generates unique folder-like name
-        if not name.lower().endswith(".gdb"):
+        if not name.lower().endswith(".gdb"): # type: ignore
             name = f"{name}.gdb"
-        arcpy.management.CreateFileGDB(os.path.dirname(name), os.path.basename(name))
+        arcpy.management.CreateFileGDB(os.path.dirname(name), os.path.basename(name)) # type: ignore
         return name
 
     def _same_sr(self, fc, sr):
         try:
-            dsr = arcpy.Describe(fc).spatialReference
+            dsr = arcpy.Describe(fc).spatialReference # type: ignore
             return (dsr and sr and dsr.factoryCode == sr.factoryCode and dsr.name == sr.name)
         except Exception:
             return False
@@ -852,15 +798,15 @@ class MergeFloodFreqs(object):
             tmp = arcpy.CreateUniqueName(f"norm_{i}", scratch)
             if self._same_sr(fc, target_sr):
                 # Copy as-is to ensure consistent storage + tolerance
-                arcpy.management.CopyFeatures(fc, tmp)
+                arcpy.management.CopyFeatures(fc, tmp) # type: ignore
             else:
-                arcpy.management.Project(fc, tmp, target_sr)
+                arcpy.management.Project(fc, tmp, target_sr) # type: ignore
             # Repair (delete null shapes if present)
             try:
-                arcpy.management.RepairGeometry(tmp, validation_method="OGC", delete_null="DELETE_NULL")
+                arcpy.management.RepairGeometry(tmp, validation_method="OGC", delete_null="DELETE_NULL") # type: ignore
             except TypeError:
                 # older Pro builds don’t have delete_null; fall back
-                arcpy.management.RepairGeometry(tmp, validation_method="OGC")
+                arcpy.management.RepairGeometry(tmp, validation_method="OGC") # type: ignore
             out.append(tmp)
         return out
 
@@ -869,43 +815,43 @@ class MergeFloodFreqs(object):
         scratch = self._scratch_gdb()
         base = os.path.basename(in_fc)
         clean = arcpy.CreateUniqueName(f"clean_{base}", scratch)
-        arcpy.management.CopyFeatures(in_fc, clean)
-        try:
-            arcpy.management.RepairGeometry(clean, validation_method="OGC", delete_null="DELETE_NULL")
+        arcpy.management.CopyFeatures(in_fc, clean) # type: ignore
+        try: 
+            arcpy.management.RepairGeometry(clean, validation_method="OGC", delete_null="DELETE_NULL") # type: ignore
         except TypeError:
-            arcpy.management.RepairGeometry(clean, validation_method="OGC")
+            arcpy.management.RepairGeometry(clean, validation_method="OGC") # type: ignore
         # Optional polygon 0-buffer to fix self-intersections; no-op for lines
-        gtype = arcpy.Describe(clean).shapeType
+        gtype = arcpy.Describe(clean).shapeType # type: ignore
         if gtype.lower() == "polygon":
             buf = arcpy.CreateUniqueName(f"buf0_{base}", scratch)
-            arcpy.analysis.Buffer(clean, buf, "0 Feet", dissolve_option="NONE")
+            arcpy.analysis.Buffer(clean, buf, "0 Feet", dissolve_option="NONE") # type: ignore
             clean = buf
         return clean
 
     def _safe_dissolve(self, in_fc, out_fc, freq_field):
         """Dissolve with a fallback path if 160196 occurs."""
         # Choose line/area option properly
-        gtype = arcpy.Describe(in_fc).shapeType
+        gtype = arcpy.Describe(in_fc).shapeType # type: ignore
         kwargs = dict(in_features=in_fc, out_feature_class=out_fc, dissolve_field=freq_field,
                     statistics_fields=[], multi_part="MULTI_PART")
         if gtype.lower() == "polyline":
             kwargs["unsplit_lines"] = "DISSOLVE_LINES"
         try:
-            arcpy.management.Dissolve(**kwargs)
+            arcpy.management.Dissolve(**kwargs) # type: ignore
             return out_fc
         except arcpy.ExecuteError as e:
             msg = arcpy.GetMessages()
-            if "160196" in msg or "Invalid Topology" in msg:
+            if "160196" in msg or "Invalid Topology" in msg: # type: ignore
                 arcpy.AddWarning("Dissolve failed with ERROR 160196; attempting pre-clean + retry…")
                 clean = self._preclean_fc(in_fc)
-                kwargs["in_features"] = clean
-                arcpy.management.Dissolve(**kwargs)
+                kwargs["in_features"] = clean # type: ignore
+                arcpy.management.Dissolve(**kwargs) # type: ignore
                 return out_fc
             raise
     
     def read_fc_paths_from_table(self, table, path_field): # returns list of strings
         paths = []
-        with arcpy.da.SearchCursor(table, [path_field]) as cur:
+        with arcpy.da.SearchCursor(table, [path_field]) as cur: # type: ignore
             for (p,) in cur:
                 if p:
                     paths.append(str(p))
@@ -931,13 +877,13 @@ class MergeFloodFreqs(object):
         out_fds = os.path.join(gdb, fds_name)
         if not arcpy.Exists(out_fds):
             _msg(f"Creating feature dataset: {out_fds}")
-            arcpy.management.CreateFeatureDataset(gdb, fds_name, sr)
+            arcpy.management.CreateFeatureDataset(gdb, fds_name, sr) # type: ignore
         else:
             _msg(f"Feature Dataset exists, using: {out_fds}")
         return out_fds
 
     def ensure_field_exists(self, in_fc, field_name): # raises RuntimeError if not found
-        if field_name not in [f.name for f in arcpy.ListFields(in_fc)]:
+        if field_name not in [f.name for f in arcpy.ListFields(in_fc)]: # type: ignore
             raise RuntimeError(f"Field '{field_name}' not found in {in_fc}.")
 
     def merge_group(self, fc_list, out_fc, target_sr=None):
@@ -946,7 +892,7 @@ class MergeFloodFreqs(object):
         # Normalize → Merge
         norm = self._normalize_inputs(fc_list, target_sr)
         arcpy.AddMessage(f"Merging {len(norm)} normalized inputs -> {out_fc}")
-        arcpy.management.Merge(norm, out_fc)
+        arcpy.management.Merge(norm, out_fc) # type: ignore
         # Pre-clean merged temp to stabilize topology for dissolve later
         return out_fc
     
@@ -1014,82 +960,82 @@ class MergeFloodFreqs(object):
         _msg("Merging and dissolving feature classes by frequency group...")
         _msg("Merging 500yr group...")
         if buckets.get("500yr"):
-            arcpy.management.Merge(buckets["500yr"] + buckets.get("100yr", []) + buckets.get("10yr", []), merged_500); _msg("500yr merge complete.")
+            arcpy.management.Merge(buckets["500yr"] + buckets.get("100yr", []) + buckets.get("10yr", []), merged_500); _msg("500yr merge complete.") # type: ignore
         _msg("Repairing geometry on merged 500yr...")
         if arcpy.Exists(merged_500):
             try:
-                arcpy.management.RepairGeometry(merged_500, validation_method="OGC", delete_null="DELETE_NULL"); _msg("500yr repair complete.")
+                arcpy.management.RepairGeometry(merged_500, validation_method="OGC", delete_null="DELETE_NULL"); _msg("500yr repair complete.") # type: ignore
             except TypeError:
-                arcpy.management.RepairGeometry(merged_500, validation_method="OGC"); _msg("500yr repair complete (without delete_null).")
+                arcpy.management.RepairGeometry(merged_500, validation_method="OGC"); _msg("500yr repair complete (without delete_null).") # type: ignore
         if arcpy.Exists(merged_500):
             try:
                 # Add a new field for flood frequency if it doesn't exist
-                fields = [field.name for field in arcpy.ListFields(merged_500)]
+                fields = [field.name for field in arcpy.ListFields(merged_500)] # type: ignore
                 if self.DISSOLVE_FIELD not in fields:
-                    arcpy.management.AddField(merged_500, self.DISSOLVE_FIELD, "Text")
+                    arcpy.management.AddField(merged_500, self.DISSOLVE_FIELD, "Text") # type: ignore
                 
-                # Calculate the flood frequency value as 0.2
-                arcpy.management.CalculateField(merged_500, self.DISSOLVE_FIELD, "0.2", "PYTHON3")
+                # Calculate the flood frequency value as 0.2 
+                arcpy.management.CalculateField(merged_500, self.DISSOLVE_FIELD, "0.2", "PYTHON3") # type: ignore
                 _msg("Flood frequency calculation complete.")
             except Exception as e:
                 _msg(f"Error during flood frequency calculation: {e}")
         _msg("Dissolving 500yr group...")
         if arcpy.Exists(merged_500):
-            arcpy.management.Dissolve(merged_500, out_500, dissolve_field=self.DISSOLVE_FIELD,
+            arcpy.management.Dissolve(merged_500, out_500, dissolve_field=self.DISSOLVE_FIELD, # type: ignore
                                       statistics_fields=None, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES"); _msg("500yr dissolve complete.")
         _msg(f"500yr Feature Class: {out_500}")
         
         _msg("Merging 100yr group...")
         if buckets.get("100yr"):
-            arcpy.management.Merge(buckets["100yr"] + buckets.get("10yr", []), merged_100); _msg("100yr merge complete.")
+            arcpy.management.Merge(buckets["100yr"] + buckets.get("10yr", []), merged_100); _msg("100yr merge complete.") # type: ignore
         _msg("Repairing geometry on merged 100yr...")
         if arcpy.Exists(merged_100):
             try:
-                arcpy.management.RepairGeometry(merged_100, validation_method="OGC", delete_null="DELETE_NULL"); _msg("100yr repair complete.")
+                arcpy.management.RepairGeometry(merged_100, validation_method="OGC", delete_null="DELETE_NULL"); _msg("100yr repair complete.") # type: ignore
             except TypeError:
-                arcpy.management.RepairGeometry(merged_100, validation_method="OGC"); _msg("100yr repair complete (without delete_null).")
+                arcpy.management.RepairGeometry(merged_100, validation_method="OGC"); _msg("100yr repair complete (without delete_null).") # type: ignore
         if arcpy.Exists(merged_100):
             try:
                 # Add a new field for flood frequency if it doesn't exist
-                fields = [field.name for field in arcpy.ListFields(merged_100)]
+                fields = [field.name for field in arcpy.ListFields(merged_100)] # type: ignore
                 if self.DISSOLVE_FIELD not in fields:
-                    arcpy.management.AddField(merged_100, self.DISSOLVE_FIELD, "Text")
+                    arcpy.management.AddField(merged_100, self.DISSOLVE_FIELD, "Text") # type: ignore
                 
                 # Calculate the flood frequency value as 1
-                arcpy.management.CalculateField(merged_100, self.DISSOLVE_FIELD, "1", "PYTHON3")
+                arcpy.management.CalculateField(merged_100, self.DISSOLVE_FIELD, "1", "PYTHON3") # type: ignore
                 _msg("Flood frequency calculation complete.")
             except Exception as e:
                 _msg(f"Error during flood frequency calculation: {e}")
         _msg("Dissolving 100yr group...")
         if arcpy.Exists(merged_100):
-            arcpy.management.Dissolve(merged_100, out_100, dissolve_field=self.DISSOLVE_FIELD,
+            arcpy.management.Dissolve(merged_100, out_100, dissolve_field=self.DISSOLVE_FIELD, # type: ignore
                                       statistics_fields=None, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES"); _msg("100yr dissolve complete.")
         _msg(f"100yr Feature Class: {out_100}")
         
         _msg("Merging 10yr group...")
         if buckets.get("10yr"):
-            arcpy.management.Merge(buckets["10yr"], merged_010); _msg("10yr merge complete.")
+            arcpy.management.Merge(buckets["10yr"], merged_010); _msg("10yr merge complete.") # type: ignore
         _msg("Repairing geometry on merged 10yr...")
         if arcpy.Exists(merged_010):
             try:
-                arcpy.management.RepairGeometry(merged_010, validation_method="OGC", delete_null="DELETE_NULL"); _msg("10yr repair complete.")
+                arcpy.management.RepairGeometry(merged_010, validation_method="OGC", delete_null="DELETE_NULL"); _msg("10yr repair complete.") # type: ignore
             except TypeError:
-                arcpy.management.RepairGeometry(merged_010, validation_method="OGC"); _msg("10yr repair complete (without delete_null).")
+                arcpy.management.RepairGeometry(merged_010, validation_method="OGC"); _msg("10yr repair complete (without delete_null).") # type: ignore
         if arcpy.Exists(merged_010):
             try:
                 # Add a new field for flood frequency if it doesn't exist
-                fields = [field.name for field in arcpy.ListFields(merged_010)]
+                fields = [field.name for field in arcpy.ListFields(merged_010)] # type: ignore
                 if self.DISSOLVE_FIELD not in fields:
-                    arcpy.management.AddField(merged_010, self.DISSOLVE_FIELD, "Text")
+                    arcpy.management.AddField(merged_010, self.DISSOLVE_FIELD, "Text") # type: ignore
                 
                 # Calculate the flood frequency value as 10
-                arcpy.management.CalculateField(merged_010, self.DISSOLVE_FIELD, "10", "PYTHON3")
+                arcpy.management.CalculateField(merged_010, self.DISSOLVE_FIELD, "10", "PYTHON3") # type: ignore
                 _msg("Flood frequency calculation complete.")
             except Exception as e:
                 _msg(f"Error during flood frequency calculation: {e}")
         _msg("Dissolving 10yr group...")
         if arcpy.Exists(merged_010):
-            arcpy.management.Dissolve(merged_010, out_010, dissolve_field=self.DISSOLVE_FIELD,
+            arcpy.management.Dissolve(merged_010, out_010, dissolve_field=self.DISSOLVE_FIELD, # type: ignore
                                       statistics_fields=None, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES"); _msg("10yr dissolve complete.")
         _msg(f"10yr Feature Class: {out_010}")
 
@@ -1106,104 +1052,6 @@ class MergeFloodFreqs(object):
 
         _msg("Merge & Dissolve complete.")
 
-    """
-    def execute(self, params, messages):
-        (p_lut, p_ws, p_h8, p_table, p_field, p_gdb, p_base, p_sr,
-         p_parallel, p_overwrite, #p_wsenv, p_scratch, p_ocs,   # not used, envs applied globally
-         p_outfds, p_out500, p_out100, p_out10) = params
-
-        apply_envs(p_parallel.valueAsText or "100%",
-                   p_overwrite.value,
-                   #p_wsenv.valueAsText,        # not used, envs applied globally 
-                   #p_scratch.valueAsText,      # not used, envs applied globally
-                   #p_ocs.value                 # not used, envs applied globally
-                   )
-
-        input_table = p_table.valueAsText
-        path_field  = p_field.valueAsText or "FCPath"
-        project_gdb = p_gdb.valueAsText
-        basename    = p_base.valueAsText
-        sr_param    = p_sr.value
-
-        basename = p_base.valueAsText or (compute_basename(p_ws.valueAsText, p_h8.valueAsText) if (p_ws.value and p_h8.value) else None)
-        if not basename:
-            raise RuntimeError("Basename is required (supply it or pick Watershed + HUC8).")
-        p_base.value = basename  # keep the dialog in sync
-
-        # Read paths from table
-        paths = self.read_fc_paths_from_table(input_table, path_field)
-        if len(paths) < 3:
-            raise RuntimeError("Expected at least 3 rows with FC paths.")
-
-        # Group by suffix
-        buckets = self.group_by_suffix(paths)
-        for key in self.FREQ_KEYS:
-            if not buckets.get(key):
-                _msg(f"No inputs found for '{key}' group.", warn=True)
-
-        sr = self.pick_spatial_ref(paths, sr_param)
-        out_fds = self.create_feature_dataset(project_gdb, basename, sr)
-
-        # Temporary merged paths
-        merged_500 = os.path.join(out_fds, "Merged_500yr_tmp")
-        merged_100 = os.path.join(out_fds, "Merged_100yr_tmp")
-        merged_010 = os.path.join(out_fds, "Merged_10yr_tmp")
-
-        # Final paths
-        _msg(f"Output Feature Dataset: {out_fds}")
-        out_500 = os.path.join(out_fds, f"Existing_Future_{basename}_500yr")
-        out_100 = os.path.join(out_fds, f"Existing_Future_{basename}_100yr")
-        out_010 = os.path.join(out_fds, f"Existing_Future_{basename}_10yr")
-        
-        # Merge by group
-        _msg("Merging and dissolving feature classes by frequency group...")
-        
-        _msg("Merging 500yr group...")
-        if buckets.get("500yr"):
-            self.merge_group(buckets["500yr"], merged_500, target_sr=sr); _msg("500yr merge complete.")
-        _msg("Dissolving 500yr group...")
-        if arcpy.Exists(merged_500): 
-            self.dissolve_on_freq(merged_500, out_500); _msg("500yr dissolve complete.")
-            '''arcpy.management.Dissolve(merged_500, out_500, dissolve_field=self.DISSOLVE_FIELD,
-                                      statistics_fields=None, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES"); _msg("500yr dissolve complete.")'''
-        _msg(f"500yr Feature Class: {out_500}")
-
-        _msg("Merging 100yr group...")
-        if buckets.get("100yr"):
-            self.merge_group(buckets["100yr"], merged_100, target_sr=sr); _msg("100yr merge complete.")
-        _msg("Dissolving 100yr group...")
-        if arcpy.Exists(merged_100): 
-            self.dissolve_on_freq(merged_100, out_100) ;_msg("100yr dissolve complete.")
-            '''arcpy.management.Dissolve(merged_100, out_100, dissolve_field=self.DISSOLVE_FIELD,
-                                      statistics_fields=None, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES"); _msg("100yr dissolve complete.")'''
-        _msg(f"100yr Feature Class: {out_100}")
-
-        _msg("Merging 10yr group...")
-        if buckets.get("10yr"):
-            self.merge_group(buckets["10yr"], merged_010, target_sr=sr); _msg("10yr merge complete.")
-        _msg("Dissolving 10yr group...")
-        if arcpy.Exists(merged_010): 
-            self.dissolve_on_freq(merged_010, out_010); _msg("10yr dissolve complete.")
-            '''arcpy.management.Dissolve(merged_010, out_010, dissolve_field=self.DISSOLVE_FIELD,
-                                      statistics_fields=None, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES"); _msg("10yr dissolve complete.")'''
-        _msg(f"10yr Feature Class: {out_010}")
-
-        _msg("All merges and dissolves complete.")
-
-        # Cleanup temporaries
-        _msg("Cleaning up temporary datasets...")
-        for tmp in (merged_500, merged_100, merged_010):
-            if arcpy.Exists(tmp): arcpy.management.Delete(tmp)
-        _msg("Temporary datasets deleted.")
-
-        # Derived outputs
-        p_outfds.value = out_fds
-        p_out500.value = out_500 if arcpy.Exists(out_500) else ""
-        p_out100.value = out_100 if arcpy.Exists(out_100) else ""
-        p_out10.value  = out_010 if arcpy.Exists(out_010) else ""
-
-        _msg("Merge & Dissolve complete.")
-        """
 # ---------------------------
 # Tool 3: CombineFloodFreqs ← based on FloodQuiltCombineModule.py
 # ---------------------------
@@ -1305,32 +1153,6 @@ class CombineFloodFreqs(object):
             direction="Input",
             category="Environment Settings"
         ); p_overwrite.value = True
-        '''
-        p_wsenv    = arcpy.Parameter(       # not used, envs applied globally
-            displayName="Workspace",
-            name="env_workspace",
-            datatype="Workspace",           # ← was DEWorkspace, Workspace is the safest for GDBs in a .pyt.
-            parameterType="Optional",
-            direction="Input",
-            category="Environment Settings"
-        )
-        p_scratch  = arcpy.Parameter(       # not used, envs applied globally
-            displayName="Scratch Workspace",
-            name="env_scratch",
-            datatype="Workspace",           # ← was DEWorkspace, Workspace is the safest for GDBs in a .pyt.
-            parameterType="Optional",
-            direction="Input",
-            category="Environment Settings"
-        )
-        p_ocs      = arcpy.Parameter(       # not used, envs applied globally
-            displayName="Output Coordinate System",
-            name="env_ocs",
-            datatype="GPSpatialReference",
-            parameterType="Optional",
-            direction="Input",
-            category="Environment Settings"
-        )
-'''
         p_validate = arcpy.Parameter(
             displayName="Validate topology after build",
             name="validate_topology",
@@ -1363,12 +1185,12 @@ class CombineFloodFreqs(object):
         )
 
         return [p_lut, p_ws, p_h8, p_gdb, p_base, p_outfds, p_500, p_100, p_10,
-                p_parallel, p_overwrite, #p_wsenv, p_scratch, p_ocs, # not used, envs applied globally
+                p_parallel, p_overwrite,
                 p_validate,
                 p_finalfds, p_topo, p_merged]
 
     def updateParameters(self, params):
-        (p_lut, p_ws, p_h8, *_rest) = params[:3+10]  # just to keep readable
+        p_lut, p_ws, p_h8 = params[0], params[1], params[2]  # just to keep readable
         p_basename = params[4] # derived
 
         # Cascade
@@ -1390,16 +1212,13 @@ class CombineFloodFreqs(object):
 
     def execute(self, params, messages):
         (p_lut, p_ws, p_h8, p_gdb, p_base, p_outfds, p_500, p_100, p_10,
-         p_parallel, p_overwrite, #p_wsenv, p_scratch, p_ocs, # not used, envs applied globally
-         p_validate, # NEW
+         p_parallel, p_overwrite, 
+         p_validate,
          p_finalfds, p_topo, p_merged) = params
         
 
         apply_envs(p_parallel.valueAsText or "100%",
                    p_overwrite.value,
-                   #p_wsenv.valueAsText, # not used, envs applied globally
-                   #p_scratch.valueAsText, # not used, envs applied globally
-                   #p_ocs.value # not used, envs applied globally
                    )
 
         gdb       = p_gdb.valueAsText
@@ -1416,7 +1235,6 @@ class CombineFloodFreqs(object):
             fc_500=fc500,
             fc_100=fc100,
             fc_10=fc10,
-            #out_cs=p_ocs.value, # not used, envs applied globally
             validate_topology=bool(p_validate.value) # pass Flag
         )
 
@@ -1529,22 +1347,6 @@ class RunFloodQuiltPipeline(object):
         ); p_splitfield.value="FLOOD_FREQ"
 
         # Merge inputs
-        '''
-        p_table = arcpy.Parameter(      # not used, paths derived internally
-            displayName="Input Table (with FC paths for Merge)",
-            name="merge_input_table",
-            datatype="Table View",
-            parameterType="Required",
-            direction="Input"
-        )
-        p_field = arcpy.Parameter(      # not used, paths derived internally
-            displayName="Path Field Name",
-            name="merge_path_field",
-            datatype="GPString",
-            parameterType="Optional",
-            direction="Input"
-        ); p_field.value="FCPath"
-        '''
 
         # Envs
         p_parallel = arcpy.Parameter(
@@ -1563,32 +1365,6 @@ class RunFloodQuiltPipeline(object):
             direction="Input",
             category="Environment Settings"
         ); p_overwrite.value = True
-        '''
-        p_wsenv    = arcpy.Parameter(      # not used, envs applied globally
-            displayName="Workspace",
-            name="env_workspace",
-            datatype="Workspace",
-            parameterType="Optional",
-            direction="Input",
-            category="Environment Settings"
-        )
-        p_scratch  = arcpy.Parameter(       # not used, envs applied globally
-            displayName="Scratch Workspace",
-            name="env_scratch",
-            datatype="Workspace",
-            parameterType="Optional",
-            direction="Input",
-            category="Environment Settings"
-        )
-        p_ocs      = arcpy.Parameter(       # not used, envs applied globally
-            displayName="Output Coordinate System",
-            name="env_ocs",
-            datatype="GPSpatialReference",
-            parameterType="Optional",
-            direction="Input",
-            category="Environment Settings"
-        )
-        '''
 
         # Derived finals
         p_basename  = arcpy.Parameter(
@@ -1657,15 +1433,13 @@ class RunFloodQuiltPipeline(object):
                 #p_ws_field, p_huc_field, # Future enhancement
                 p_ws, p_h8, p_gdb, p_sr,
                 p_in_exist, p_in_future, p_splitfield,
-                #p_table, p_field, # not used, paths derived internally
                 p_parallel, p_overwrite, 
-                #p_wsenv, p_scratch, p_ocs, # not used, envs applied globally
                 p_basename, p_finalfds, p_topology, p_efmerged,
-                p_validate_topo, # NEW
+                p_validate_topo,
                 p_skip_split, p_skip_merge, p_skip_combine]
 
     def updateParameters(self, params):
-        (p_lut, p_ws, p_h8, *_rest) = params[:3+7]  # just to keep readable
+        p_lut, p_ws, p_h8 = params[0], params[1], params[2]  # just to keep readable
         p_basename = params[10] # derived
 
         # Cascade
@@ -1705,37 +1479,32 @@ class RunFloodQuiltPipeline(object):
 
     # ---- Internal helpers for this module's execution ----
     def _validate_field(self, fc, field_name):
-        field_names = [f.name for f in arcpy.ListFields(fc)]
+        field_names = [f.name for f in arcpy.ListFields(fc)] # type: ignore
         if field_name not in field_names:
             raise RuntimeError(f"Required field '{field_name}' not found in {fc}.")
 
     def _ensure_fd(self, gdb, name, sr):
         out = os.path.join(gdb, name)
         if not arcpy.Exists(out):
-            arcpy.management.CreateFeatureDataset(gdb, name, sr)
+            arcpy.management.CreateFeatureDataset(gdb, name, sr) # type: ignore
         return out
 
     def _repair(self, fc):
-        return arcpy.management.RepairGeometry(fc, validation_method="OGC").getOutput(0)
+        return arcpy.management.RepairGeometry(fc, validation_method="OGC").getOutput(0) # type: ignore
 
     def execute(self, params, messages):
         (p_lut, 
          #p_ws_field, p_huc_field, 
          p_ws, p_h8, p_gdb, p_sr,
          p_in_exist, p_in_future, p_splitfield,
-         #p_table, p_field,
          p_parallel, p_overwrite, 
-         #p_wsenv, p_scratch, p_ocs,
          p_basename, p_finalfds, p_topology, p_efmerged,
-         p_validate_topo, # NEW
+         p_validate_topo,
          p_skip_split, p_skip_merge, p_skip_combine) = params
 
         # Apply envs once for all steps
         apply_envs(p_parallel.valueAsText or "100%",
                    p_overwrite.value,
-                   #p_wsenv.valueAsText,
-                   #p_scratch.valueAsText,
-                   #p_ocs.value
                    )
 
         # Gather basics
@@ -1802,12 +1571,12 @@ class RunFloodQuiltPipeline(object):
         output_table = os.path.join(gdb, "FeatureClassPaths")
         
         # Create table if not exists
-        arcpy.management.CreateTable(gdb, "FeatureClassPaths")
-        arcpy.management.AddField(output_table, "Name", "TEXT")
-        arcpy.management.AddField(output_table, "FCPath", "TEXT")
+        arcpy.management.CreateTable(gdb, "FeatureClassPaths") # type: ignore
+        arcpy.management.AddField(output_table, "Name", "TEXT") # type: ignore
+        arcpy.management.AddField(output_table, "FCPath", "TEXT") # type: ignore
         
         # Insert paths into table
-        with arcpy.da.InsertCursor(output_table, ["Name", "FCPath"]) as cursor:
+        with arcpy.da.InsertCursor(output_table, ["Name", "FCPath"]) as cursor: # type: ignore
             for name, path in fc_paths.items():
                 cursor.insertRow([name, path])
 
@@ -1858,82 +1627,82 @@ class RunFloodQuiltPipeline(object):
             _msg("Merging and dissolving feature classes by frequency group...")
             _msg("Merging 500yr group...")
             if buckets.get("500yr"):
-                arcpy.management.Merge(buckets["500yr"] + buckets.get("100yr", []) + buckets.get("10yr", []), merged_500); _msg("500yr merge complete.")
+                arcpy.management.Merge(buckets["500yr"] + buckets.get("100yr", []) + buckets.get("10yr", []), merged_500); _msg("500yr merge complete.") # type: ignore
             _msg("Repairing geometry on merged 500yr...")
             if arcpy.Exists(merged_500):
                 try:
-                    arcpy.management.RepairGeometry(merged_500, validation_method="OGC", delete_null="DELETE_NULL"); _msg("500yr repair complete.")
+                    arcpy.management.RepairGeometry(merged_500, validation_method="OGC", delete_null="DELETE_NULL"); _msg("500yr repair complete.") # type: ignore
                 except TypeError:
-                    arcpy.management.RepairGeometry(merged_500, validation_method="OGC"); _msg("500yr repair complete (without delete_null).")
+                    arcpy.management.RepairGeometry(merged_500, validation_method="OGC"); _msg("500yr repair complete (without delete_null).") # type: ignore
             if arcpy.Exists(merged_500):
                 try:
                     # Add a new field for flood frequency if it doesn't exist
-                    fields = [field.name for field in arcpy.ListFields(merged_500)]
+                    fields = [field.name for field in arcpy.ListFields(merged_500)] # type: ignore
                     if merger.DISSOLVE_FIELD not in fields:
-                        arcpy.management.AddField(merged_500, merger.DISSOLVE_FIELD, "Text")
+                        arcpy.management.AddField(merged_500, merger.DISSOLVE_FIELD, "Text") # type: ignore
                     
                     # Calculate the flood frequency value as 0.2
-                    arcpy.management.CalculateField(merged_500, merger.DISSOLVE_FIELD, "0.2", "PYTHON3")
+                    arcpy.management.CalculateField(merged_500, merger.DISSOLVE_FIELD, "0.2", "PYTHON3") # type: ignore
                     _msg("Flood frequency calculation complete.")
                 except Exception as e:
                     _msg(f"Error during flood frequency calculation: {e}")
             _msg("Dissolving 500yr group...")
             if arcpy.Exists(merged_500):
-                arcpy.management.Dissolve(merged_500, out_500, dissolve_field=merger.DISSOLVE_FIELD,
+                arcpy.management.Dissolve(merged_500, out_500, dissolve_field=merger.DISSOLVE_FIELD, # type: ignore
                                         statistics_fields=None, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES"); _msg("500yr dissolve complete.")
             _msg(f"500yr Feature Class: {out_500}")
             
             _msg("Merging 100yr group...")
             if buckets.get("100yr"):
-                arcpy.management.Merge(buckets["100yr"] + buckets.get("10yr", []), merged_100); _msg("100yr merge complete.")
+                arcpy.management.Merge(buckets["100yr"] + buckets.get("10yr", []), merged_100); _msg("100yr merge complete.") # type: ignore
             _msg("Repairing geometry on merged 100yr...")
             if arcpy.Exists(merged_100):
                 try:
-                    arcpy.management.RepairGeometry(merged_100, validation_method="OGC", delete_null="DELETE_NULL"); _msg("100yr repair complete.")
+                    arcpy.management.RepairGeometry(merged_100, validation_method="OGC", delete_null="DELETE_NULL"); _msg("100yr repair complete.") # type: ignore
                 except TypeError:
-                    arcpy.management.RepairGeometry(merged_100, validation_method="OGC"); _msg("100yr repair complete (without delete_null).")
+                    arcpy.management.RepairGeometry(merged_100, validation_method="OGC"); _msg("100yr repair complete (without delete_null).") # type: ignore
             if arcpy.Exists(merged_100):
                 try:
                     # Add a new field for flood frequency if it doesn't exist
-                    fields = [field.name for field in arcpy.ListFields(merged_100)]
+                    fields = [field.name for field in arcpy.ListFields(merged_100)] # type: ignore
                     if merger.DISSOLVE_FIELD not in fields:
-                        arcpy.management.AddField(merged_100, merger.DISSOLVE_FIELD, "Text")
+                        arcpy.management.AddField(merged_100, merger.DISSOLVE_FIELD, "Text") # type: ignore
                     
                     # Calculate the flood frequency value as 1
-                    arcpy.management.CalculateField(merged_100, merger.DISSOLVE_FIELD, "1", "PYTHON3")
+                    arcpy.management.CalculateField(merged_100, merger.DISSOLVE_FIELD, "1", "PYTHON3") # type: ignore
                     _msg("Flood frequency calculation complete.")
                 except Exception as e:
                     _msg(f"Error during flood frequency calculation: {e}")
             _msg("Dissolving 100yr group...")
             if arcpy.Exists(merged_100):
-                arcpy.management.Dissolve(merged_100, out_100, dissolve_field=merger.DISSOLVE_FIELD,
+                arcpy.management.Dissolve(merged_100, out_100, dissolve_field=merger.DISSOLVE_FIELD, # type: ignore
                                         statistics_fields=None, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES"); _msg("100yr dissolve complete.")
             _msg(f"100yr Feature Class: {out_100}")
             
             _msg("Merging 10yr group...")
             if buckets.get("10yr"):
-                arcpy.management.Merge(buckets["10yr"], merged_010); _msg("10yr merge complete.")
+                arcpy.management.Merge(buckets["10yr"], merged_010); _msg("10yr merge complete.") # type: ignore
             _msg("Repairing geometry on merged 10yr...")
             if arcpy.Exists(merged_010):
                 try:
-                    arcpy.management.RepairGeometry(merged_010, validation_method="OGC", delete_null="DELETE_NULL"); _msg("10yr repair complete.")
+                    arcpy.management.RepairGeometry(merged_010, validation_method="OGC", delete_null="DELETE_NULL"); _msg("10yr repair complete.") # type: ignore
                 except TypeError:
-                    arcpy.management.RepairGeometry(merged_010, validation_method="OGC"); _msg("10yr repair complete (without delete_null).")
+                    arcpy.management.RepairGeometry(merged_010, validation_method="OGC"); _msg("10yr repair complete (without delete_null).") # type: ignore
             if arcpy.Exists(merged_010):
                 try:
                     # Add a new field for flood frequency if it doesn't exist
-                    fields = [field.name for field in arcpy.ListFields(merged_010)]
+                    fields = [field.name for field in arcpy.ListFields(merged_010)] # type: ignore
                     if merger.DISSOLVE_FIELD not in fields:
-                        arcpy.management.AddField(merged_010, merger.DISSOLVE_FIELD, "Text")
+                        arcpy.management.AddField(merged_010, merger.DISSOLVE_FIELD, "Text") # type: ignore
                     
                     # Calculate the flood frequency value as 10
-                    arcpy.management.CalculateField(merged_010, merger.DISSOLVE_FIELD, "10", "PYTHON3")
+                    arcpy.management.CalculateField(merged_010, merger.DISSOLVE_FIELD, "10", "PYTHON3") # type: ignore
                     _msg("Flood frequency calculation complete.")
                 except Exception as e:
                     _msg(f"Error during flood frequency calculation: {e}")
             _msg("Dissolving 10yr group...")
             if arcpy.Exists(merged_010):
-                arcpy.management.Dissolve(merged_010, out_010, dissolve_field=merger.DISSOLVE_FIELD,
+                arcpy.management.Dissolve(merged_010, out_010, dissolve_field=merger.DISSOLVE_FIELD, # type: ignore
                                         statistics_fields=None, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES"); _msg("10yr dissolve complete.")
             _msg(f"10yr Feature Class: {out_010}")
 
@@ -1970,7 +1739,6 @@ class RunFloodQuiltPipeline(object):
                 fc_500=out_500,
                 fc_100=out_100,
                 fc_10=out_010,
-                #out_cs=p_ocs.value,
                 validate_topology=bool(p_validate_topo.value)  # ← pass checkbox
             )
             p_finalfds.value = combine_out["final_fds"]
