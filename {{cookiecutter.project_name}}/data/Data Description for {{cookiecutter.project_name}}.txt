@@ -1,4 +1,0 @@
-## Overview
-
-A description of data that is used for this toolbox.
-All reference data should go in the /data folder.
