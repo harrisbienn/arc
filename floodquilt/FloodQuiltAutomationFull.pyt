@@ -4,8 +4,8 @@
 ArcGIS Pro Python Toolbox (.pyt) for Flood Quilt Automation
 Filename: FloodQuiltAutomation.pyt
 Author: Harris Bienn, Halff Associates, hbienn@halff.com
-Date: 2025-09-26
-Version: 0.1
+Date: 2025-10-06
+Version: 0.1.1
 --------------------------
 Description:
 This toolbox contains tools to automate the processing of flood hazard data,
