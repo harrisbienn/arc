@@ -43,7 +43,9 @@ To Do:
     - Specifically topology error handing in the Merge submodule
 - Allow user-defined field names for watershed and HUC8 in lookup table.
 - Streamline temporary data handling to minimize I/O.
-- 
+- Full pipeline runner extracted to top-level tool.
+- Add unit tests for core functions.
+
 """
 
 import arcpy
@@ -783,7 +785,7 @@ def intersect_dissolve_append(ef_merged, template_gdb, dest_dir):
     if arcpy.Exists(entities):
         # create a layer to run SelectLayerByAttribute on
         ents_layer = arcpy.management.MakeFeatureLayer(entities, "entities_layer").getOutput(0) # type: ignore
-        entities_sel = arcpy.analysis.SelectLayerByAttribute(ents_layer, "NEW_SELECTION", "ENT_TYPE = 'County'").getOutput(0) # type: ignore
+        entities_sel = arcpy.management.SelectLayerByAttribute(ents_layer, "NEW_SELECTION", "ENT_TYPE = 'County'").getOutput(0) # type: ignore
     else:
         _msg(f"Entities not found: {entities}")
 
@@ -929,7 +931,7 @@ class SplitFloodFreqs(object):
         ); p_overwrite.value = True
 
         # Derived
-        p_basename = arcpy.Parameter(
+        p_base = arcpy.Parameter(
             displayName="Basename (derived)",
             name="basename",
             datatype="GPString",
@@ -995,12 +997,12 @@ class SplitFloodFreqs(object):
 
         return [p_lut, p_ws, p_h8, p_gdb, p_sr, p_in_exist, p_in_future, p_splitfield,
             p_parallel, p_overwrite, 
-            p_basename, p_fds_exist, p_exist_10, p_exist_100, p_exist_500,
+            p_base, p_fds_exist, p_exist_10, p_exist_100, p_exist_500,
             p_fds_future, p_future_10, p_future_100, p_future_500]
 
     def updateParameters(self, params):
         p_lut, p_ws, p_h8 = params[0], params[1], params[2]  # just to keep readable
-        p_basename = params[10] # derived
+        p_base = params[10] # derived
 
         # Cascade
         if p_lut.altered and p_lut.value:
@@ -1012,13 +1014,13 @@ class SplitFloodFreqs(object):
                 p_h8.filter.list = []
 
         if p_ws.value and p_h8.value:
-            p_basename.value = compute_basename(p_ws.value, p_h8.value)
+            p_base.value = compute_basename(p_ws.value, p_h8.value)
         return
 
     def execute(self, params, messages):
         (p_lut, p_ws, p_h8, p_gdb, p_sr, p_in_exist, p_in_future, p_splitfield,
          p_parallel, p_overwrite, 
-         p_basename, p_fds_exist, p_exist_10, p_exist_100, p_exist_500,
+         p_base, p_fds_exist, p_exist_10, p_exist_100, p_exist_500,
          p_fds_future, p_future_10, p_future_100, p_future_500) = params
 
         apply_envs(p_parallel.valueAsText or "100%",
@@ -1031,8 +1033,11 @@ class SplitFloodFreqs(object):
         in_future   = p_in_future.valueAsText
         split_field = (p_splitfield.valueAsText or "FLOOD_FREQ")
 
-        basename = compute_basename(p_ws.valueAsText, p_h8.valueAsText)
-        arcpy.SetParameterAsText(10, basename)  # derived
+        basename = p_base.valueAsText or (compute_basename(p_ws.valueAsText, p_h8.valueAsText) if (p_ws.value and p_h8.value) else None)
+        p_base.value = basename  # set derived
+        if not basename:
+            raise RuntimeError("Basename is required.")
+        
         _msg(f"Basename: {basename}")
         _msg(f"Splitting by field: {split_field}")
 
@@ -1146,10 +1151,10 @@ class MergeFloodFreqs(object):
             direction="Input"
         )
         p_base  = arcpy.Parameter(         # Check if being passed correctly
-            displayName="Basename (from Split tool)",
+            displayName="Basename (Computed)",
             name="basename",
             datatype="GPString",
-            parameterType="Required",
+            parameterType="Derived",
             direction="Input"
         )
         p_sr    = arcpy.Parameter(
@@ -1214,7 +1219,7 @@ class MergeFloodFreqs(object):
 
     def updateParameters(self, params):
         p_lut, p_ws, p_h8 = params[0], params[1], params[2]  # just to keep readable
-        p_basename = params[6] # derived
+        p_base = params[6] # derived
 
         # Cascade
         if p_lut.altered and p_lut.value:
@@ -1226,7 +1231,7 @@ class MergeFloodFreqs(object):
                 p_h8.filter.list = []
 
         if p_ws.value and p_h8.value:
-            p_basename.value = compute_basename(p_ws.value, p_h8.value)
+            p_base.value = compute_basename(p_ws.value, p_h8.value)
         return
 
     def execute(self, params, messages):
@@ -1238,24 +1243,23 @@ class MergeFloodFreqs(object):
                    p_overwrite.value
                    )
 
-        input_table = p_table.valueAsText
-        path_field  = p_field.valueAsText or "FCPath"
-        gdb       = p_gdb.valueAsText
-        basename  = p_base.valueAsText
-        sr_param    = p_sr.value
-
-        # Basename: prefer explicit input; else derive from WS/HUC8
         basename = p_base.valueAsText or (compute_basename(p_ws.valueAsText, p_h8.valueAsText) if (p_ws.value and p_h8.value) else None)
+        p_base.value = basename  # set derived
         if not basename:
-            raise RuntimeError("Basename is required (either connect from Split or choose Watershed + HUC8).")
-        p_base.value = basename  # keep dialog synced
+            raise RuntimeError("Basename is required.")
+
+        input_table  = p_table.valueAsText
+        path_field   = p_field.valueAsText or "FCPath"
+        gdb          = p_gdb.valueAsText
+        basename     = basename
+        sr_param     = p_sr.value
 
         result = merge_floods(
             input_table = input_table,
-            path_field = path_field,
-            gdb = gdb,
-            basename = basename,
-            sr_param = sr_param
+            path_field  = path_field,
+            gdb         = gdb,
+            basename    = basename,
+            sr_param    = sr_param
         )
 
         # Derived outputs
@@ -1315,13 +1319,13 @@ class CombineFloodFreqs(object):
             direction="Input"
         )
         p_base  = arcpy.Parameter(
-            displayName="Basename (from previous steps)",
+            displayName="Basename (Computed)",
             name="basename",
             datatype="GPString",
-            parameterType="Required",
+            parameterType="Derived",
             direction="Input"
         )
-        p_outfds= arcpy.Parameter(  # this should be updated to auto-populate based on previous selections made in the dialogue
+        p_outfds= arcpy.Parameter(  
             displayName="Output Feature Dataset",
             name="output_feature_dataset",
             datatype="DEFeatureDataset",
@@ -1405,7 +1409,7 @@ class CombineFloodFreqs(object):
 
     def updateParameters(self, params):
         p_lut, p_ws, p_h8 = params[0], params[1], params[2]  # just to keep readable
-        p_basename = params[4] # derived
+        p_base = params[4] # derived
 
         # Cascade
         if p_lut.altered and p_lut.value:
@@ -1417,11 +1421,7 @@ class CombineFloodFreqs(object):
                 p_h8.filter.list = []
 
         if p_ws.value and p_h8.value:
-            p_basename.value = compute_basename(p_ws.value, p_h8.value)
-            params[5].value = os.path.join(params[3].valueAsText, f"Output_{p_basename.value}")
-            params[6].value = os.path.join(params[3].valueAsText, f"Existing_Future_{p_basename.value}_500yr")
-            params[7].value = os.path.join(params[3].valueAsText, f"Existing_Future_{p_basename.value}_100yr")
-            params[8].value = os.path.join(params[3].valueAsText, f"Existing_Future_{p_basename.value}_10yr")
+            p_base.value = compute_basename(p_ws.value, p_h8.value)
         return
 
     def execute(self, params, messages):
@@ -1430,26 +1430,35 @@ class CombineFloodFreqs(object):
          p_validate,
          p_finalfds, p_topo, p_merged) = params
         
-
         apply_envs(p_parallel.valueAsText or "100%",
                    p_overwrite.value,
                    )
 
+        basename = p_base.valueAsText or (compute_basename(p_ws.valueAsText, p_h8.valueAsText) if (p_ws.value and p_h8.value) else None)
+        p_base.value = basename  # set derived
+        if not basename:
+            raise RuntimeError("Basename is required.")
+       
+        p_outfds.value = os.path.join(p_gdb.valueAsText, f"Output_{basename}")
+        p_500.value = os.path.join(p_outfds.valueAsText, f"Existing_Future_{basename}_500yr")
+        p_100.value = os.path.join(p_outfds.valueAsText, f"Existing_Future_{basename}_100yr")
+        p_10.value = os.path.join(p_outfds.valueAsText, f"Existing_Future_{basename}_10yr")
+
         gdb       = p_gdb.valueAsText
-        basename  = p_base.valueAsText
-        out_fds   = p_outfds.valueAsText  # Output_<Basename> from Tool 2
+        basename  = basename
+        out_fds   = p_outfds.valueAsText  
         fc500     = p_500.valueAsText
         fc100     = p_100.valueAsText
         fc10      = p_10.valueAsText
 
         result = combine_floods(
-            gdb=gdb,
-            basename=basename,
-            out_fds=out_fds,
-            fc_500=fc500,
-            fc_100=fc100,
-            fc_10=fc10,
-            validate_topology=bool(p_validate.value) # pass Flag
+            gdb                 = gdb,
+            basename            = basename,
+            out_fds             = out_fds,
+            fc_500              = fc500,
+            fc_100              = fc100,
+            fc_10               = fc10,
+            validate_topology   = bool(p_validate.value) # pass Flag
         )
 
         p_finalfds.value = result["final_fds"]
@@ -1581,7 +1590,7 @@ class RunFloodQuiltPipeline(object):
         ); p_overwrite.value = True
 
         # Derived finals
-        p_basename  = arcpy.Parameter(
+        p_base  = arcpy.Parameter(
             displayName="Basename (derived)",
             name="basename",
             datatype="GPString",
@@ -1648,13 +1657,13 @@ class RunFloodQuiltPipeline(object):
                 p_ws, p_h8, p_gdb, p_sr,
                 p_in_exist, p_in_future, p_splitfield,
                 p_parallel, p_overwrite, 
-                p_basename, p_finalfds, p_topology, p_efmerged,
+                p_base, p_finalfds, p_topology, p_efmerged,
                 p_validate_topo,
                 p_skip_split, p_skip_merge, p_skip_combine]
 
     def updateParameters(self, params):
         p_lut, p_ws, p_h8 = params[0], params[1], params[2]  # just to keep readable
-        p_basename = params[10] # derived
+        p_base = params[10] # derived
 
         # Cascade
         if p_lut.altered and p_lut.value:
@@ -1666,7 +1675,7 @@ class RunFloodQuiltPipeline(object):
                 p_h8.filter.list = []
 
         if p_ws.value and p_h8.value:
-            p_basename.value = compute_basename(p_ws.value, p_h8.value)
+            p_base.value = compute_basename(p_ws.value, p_h8.value)
         return
     
     ''' # Future enhancement: allow user to specify watershed and HUC fields if needed
@@ -1712,7 +1721,7 @@ class RunFloodQuiltPipeline(object):
          p_ws, p_h8, p_gdb, p_sr,
          p_in_exist, p_in_future, p_splitfield,
          p_parallel, p_overwrite, 
-         p_basename, p_finalfds, p_topology, p_efmerged,
+         p_base, p_finalfds, p_topology, p_efmerged,
          p_validate_topo,
          p_skip_split, p_skip_merge, p_skip_combine) = params
 
@@ -1721,20 +1730,22 @@ class RunFloodQuiltPipeline(object):
                    p_overwrite.value,
                    )
 
+        basename = p_base.valueAsText or (compute_basename(p_ws.valueAsText, p_h8.valueAsText) if (p_ws.value and p_h8.value) else None)
+        p_base.value = basename  # set derived
+        if not basename:
+            raise RuntimeError("Basename is required.")
+
         # Gather basics
         gdb         = p_gdb.valueAsText
         sr_obj      = p_sr.value
         existing_fc = p_in_exist.valueAsText
         future_fc   = p_in_future.valueAsText
         split_field = (p_splitfield.valueAsText or "FLOOD_FREQ")
+        basename    = basename
         '''
         table_for_merge = p_table.valueAsText or os.path.join(gdb, "FeatureClassPaths") # Explicitly passed
         table_path_field= p_field.valueAsText or "FCPath" # Explicitly passed
         '''
-
-        # Derived basename
-        basename = compute_basename(p_ws.valueAsText, p_h8.valueAsText)
-        arcpy.SetParameterAsText(12, basename)
 
         # Validate key inputs
         if not arcpy.Exists(gdb):
@@ -1749,12 +1760,12 @@ class RunFloodQuiltPipeline(object):
             arcpy.AddMessage("1) SPLIT MODULE: Creating existing and future datasets and splitting by frequency…")
             _msg(f"Inputs:\n  Geodatabase: {gdb}\n  Existing FC: {existing_fc}\n  Future FC: {future_fc}\n  Split Field: {split_field}")
             split_out = split_floods(
-                gdb=gdb,
-                basename=basename,
-                spatial_ref=sr_obj,
-                existing_fc=existing_fc,
-                future_fc=future_fc,
-                split_field=split_field
+                gdb             = gdb,
+                basename        = basename,
+                spatial_ref     = sr_obj,
+                existing_fc     = existing_fc,
+                future_fc       = future_fc,
+                split_field     = split_field
             )
         else:
             arcpy.AddMessage("1) SPLIT MODULE: skipped by user flag.")
@@ -1804,11 +1815,11 @@ class RunFloodQuiltPipeline(object):
             _msg(f"Inputs:\n  Lookup Table: {p_lut.valueAsText}\n  Geodatabase: {gdb}\n  Basename: {basename}\n  Table with FC paths: {output_table}\n  Path Field: FCPath")
             # Read table of FC paths    
             merge_out = merge_floods(
-                input_table = output_table,
-                path_field = "FCPath",
-                gdb = gdb,
-                basename = basename,
-                sr_param = sr_obj
+                input_table     = output_table,
+                path_field      = "FCPath",
+                gdb             = gdb,
+                basename        = basename,
+                sr_param        = sr_obj
             )
 
             out_fds = merge_out["out_fds"]
@@ -1830,13 +1841,13 @@ class RunFloodQuiltPipeline(object):
             arcpy.AddMessage("3) COMBINE SUBMODULE: Repair, erase overlaps, merge, and (optionally) validate topology…")
             _msg(f"Inputs:\n  Flood_500yr: {out_500}\n  Flood_100yr: {out_100}\n  Flood_10yr: {out_010}")
             combine_out = combine_floods(
-                gdb=gdb,
-                basename=basename,
-                out_fds=out_fds,   # from Merge section
-                fc_500=out_500,
-                fc_100=out_100,
-                fc_10=out_010,
-                validate_topology=bool(p_validate_topo.value)  # ← pass checkbox
+                gdb                 = gdb,
+                basename            = basename,
+                out_fds             = out_fds,   # from Merge section
+                fc_500              = out_500,
+                fc_100              = out_100,
+                fc_10               = out_010,
+                validate_topology   = bool(p_validate_topo.value)  # ← pass checkbox
             )
             p_finalfds.value = combine_out["final_fds"]
             p_topology.value = combine_out["topology"]
@@ -1859,7 +1870,7 @@ class IntersectDissolveAppend(object):
 
     """
     def __init__(self):
-        self.label = "Intersect, Dissolve, and Append Utility"
+        self.label = "4) Intersect, Dissolve, and Append Utility"
         self.description = "Intersects two polygon feature classes, dissolves by grouped fields, and appends to a target feature class."
         self.canRunInBackground = False
 
