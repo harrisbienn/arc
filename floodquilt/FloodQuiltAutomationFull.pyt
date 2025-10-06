@@ -854,7 +854,7 @@ class SplitFloodFreqs(object):
     def getParameterInfo(self):
         # Selector
         p_lut = arcpy.Parameter(
-            displayName="Lookup Table (two columns: Watershed, HUC8)",
+            displayName="Lookup Table (two columns: Watershed, HUC8/County)",
             name="lookup_table",
             datatype="Table View",          # ← was DETable, Table View is the most compatible datatype for user-picked tables in a .pyt.
             parameterType="Required",
@@ -868,7 +868,7 @@ class SplitFloodFreqs(object):
             direction="Input"
         ); p_ws.filter.type = "ValueList"
         p_h8  = arcpy.Parameter(
-            displayName="HUC8",
+            displayName="HUC8/County",
             name="huc8",
             datatype="GPString",
             parameterType="Required",
@@ -1109,7 +1109,7 @@ class MergeFloodFreqs(object):
 
     def getParameterInfo(self):
         p_lut = arcpy.Parameter(
-            displayName="Lookup Table (two columns: Watershed, HUC8)",
+            displayName="Lookup Table (two columns: Watershed, HUC8/County)",
             name="lookup_table",
             datatype="Table View",          # ← was DETable, Table View is the most compatible datatype for user-picked tables in a .pyt.
             parameterType="Required",
@@ -1123,7 +1123,7 @@ class MergeFloodFreqs(object):
             direction="Input"
         ); p_ws.filter.type = "ValueList"
         p_h8  = arcpy.Parameter(
-            displayName="HUC8",
+            displayName="HUC8/County",
             name="huc8",
             datatype="GPString",
             parameterType="Required",
@@ -1291,7 +1291,7 @@ class CombineFloodFreqs(object):
 
     def getParameterInfo(self):
         p_lut = arcpy.Parameter(
-            displayName="Lookup Table (two columns: Watershed, HUC8)",
+            displayName="Lookup Table (two columns: Watershed, HUC8/County)",
             name="lookup_table",
             datatype="Table View",          # ← was DETable, Table View is the most compatible datatype for user-picked tables in a .pyt.
             parameterType="Required",
@@ -1305,7 +1305,7 @@ class CombineFloodFreqs(object):
             direction="Input"
         ); p_ws.filter.type = "ValueList"
         p_h8  = arcpy.Parameter(
-            displayName="HUC8",
+            displayName="HUC8/County",
             name="huc8",
             datatype="GPString",
             parameterType="Required",
@@ -1492,7 +1492,7 @@ class RunFloodQuiltPipeline(object):
     def getParameterInfo(self):
         # Selector
         p_lut = arcpy.Parameter(
-            displayName="Lookup Table (Watershed,HUC8)",
+            displayName="Lookup Table (two columns: Watershed, HUC8/County)",
             name="lookup_table",
             datatype="Table View",
             parameterType="Required",
@@ -1523,7 +1523,7 @@ class RunFloodQuiltPipeline(object):
             direction="Input"
         ); p_ws.filter.type="ValueList"
         p_h8  = arcpy.Parameter(
-            displayName="HUC8",
+            displayName="HUC8/County",
             name="huc8",
             datatype="GPString",
             parameterType="Required",
